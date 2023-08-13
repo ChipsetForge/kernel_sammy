@@ -233,6 +233,19 @@ static ssize_t modes_show(struct device *device,
 
 	return written;
 }
+/*bug536291,sijun.wt,2020/0307, add clk node for lcd begin*/
+u64 flag_node=0;
+static ssize_t mipi_clk_store(struct device *device,
+			   struct device_attribute *attr,
+			   const char *buf, size_t count)
+{
+	int flag_debug;
+	sscanf(buf,"%d",&flag_debug);
+
+    flag_node=(u64)flag_debug;
+	return count;
+}
+/*bug536291,sijun.wt,2020/0307, add clk node for lcd end*/
 
 static ssize_t disp_param_store(struct device *device,
 			   struct device_attribute *attr,
@@ -558,42 +571,14 @@ static DEVICE_ATTR_RW(status);
 static DEVICE_ATTR_RO(enabled);
 static DEVICE_ATTR_RO(dpms);
 static DEVICE_ATTR_RO(modes);
-static DEVICE_ATTR_RW(disp_param);
-static DEVICE_ATTR_RW(mipi_reg);
-static DEVICE_ATTR_RO(oled_pmic_id);
-static DEVICE_ATTR_RO(panel_info);
-static DEVICE_ATTR_RO(wp_info);
-static DEVICE_ATTR_RO(dynamic_fps);
-static DEVICE_ATTR_RW(doze_brightness);
-static DEVICE_ATTR_RO(gamma_test);
-static DEVICE_ATTR_RW(disp_count);
-static DEVICE_ATTR_RO(fod_ui_ready);
-static DEVICE_ATTR_RO(smart_fps_value);
-static DEVICE_ATTR_RO(complete_commit_time);
-static DEVICE_ATTR_RW(thermal_hbm_disabled);
-static DEVICE_ATTR_RO(hw_vsync_info);
-static DEVICE_ATTR_RW(disp_pcc);
+static DEVICE_ATTR_WO(mipi_clk);//bug536291,sijun.wt,2020/0307, add clk node for lcd
 
 static struct attribute *connector_dev_attrs[] = {
 	&dev_attr_status.attr,
 	&dev_attr_enabled.attr,
 	&dev_attr_dpms.attr,
 	&dev_attr_modes.attr,
-	&dev_attr_disp_param.attr,
-	&dev_attr_mipi_reg.attr,
-	&dev_attr_oled_pmic_id.attr,
-	&dev_attr_panel_info.attr,
-	&dev_attr_wp_info.attr,
-	&dev_attr_dynamic_fps.attr,
-	&dev_attr_doze_brightness.attr,
-	&dev_attr_gamma_test.attr,
-	&dev_attr_disp_count.attr,
-	&dev_attr_fod_ui_ready.attr,
-	&dev_attr_smart_fps_value.attr,
-	&dev_attr_complete_commit_time.attr,
-	&dev_attr_thermal_hbm_disabled.attr,
-	&dev_attr_hw_vsync_info.attr,
-	&dev_attr_disp_pcc.attr,
+	&dev_attr_mipi_clk.attr,//bug536291,sijun.wt,2020/0307, add clk node for lcd
 	NULL
 };
 

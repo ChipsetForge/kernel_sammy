@@ -21,6 +21,11 @@
 #include <linux/gpio/consumer.h>
 #include <linux/of_gpio.h>
 #include "battery.h"
+#if defined(CONFIG_BATT_CISD)
+#include "batt-cisd.h"
+#endif
+
+#define USING_CW2017_BATT
 
 enum print_reason {
 	PR_INTERRUPT	= BIT(0),
@@ -77,6 +82,8 @@ enum print_reason {
 #define HVDCP2_12V_ICL_VOTER		"HVDCP2_12V_ICL_VOTER"
 #define AICL_THRESHOLD_VOTER		"AICL_THRESHOLD_VOTER"
 #define USBOV_DBC_VOTER			"USBOV_DBC_VOTER"
+//Bug 536193,taohuayi.wt,Modify,20220103,reduce the reproducibility rate of usbin-ov error.
+#define USBOV_DELAY_VOTER			"USBOV_DELAY_VOTER"
 #define CHG_TERMINATION_VOTER		"CHG_TERMINATION_VOTER"
 #define THERMAL_THROTTLE_VOTER		"THERMAL_THROTTLE_VOTER"
 #define VOUT_VOTER			"VOUT_VOTER"
@@ -91,34 +98,34 @@ enum print_reason {
 #define OTG_VOTER                       "OTG_VOTER"
 #define ICL_CHANGE_VOTER		"ICL_CHANGE_VOTER"
 #define OVERHEAT_LIMIT_VOTER		"OVERHEAT_LIMIT_VOTER"
+/* +Bug707468 lizhou02,wt.20211216, add ato version control cap max is 80% */
+#ifdef WT_COMPILE_FACTORY_VERSION
+#define FACTORY_VOTER			"STORE_FACTOR_VOTER"
+#endif
+/* -Bug707468 lizhou02,wt.20211216, add ato version control cap max is 80% */
+/* +Bug707480,lizhou02.wt,20211209,Bringup:Add for AFC, Begin +++  */
+#if defined(CONFIG_AFC)
+#define SEC_BATTERY_AFC_VOTER			"SEC_BATTERY_AFC_VOTER"
+#define SEC_BATTERY_DISABLE_HV_VOTER	"SEC_BATTERY_DISABLE_HV_VOTER"
+#endif
+/* -Bug707480,lizhou02.wt,20211209,Bringup:Add for AFC, End ---  */
+//Bug707480,lizhou02.wt,20211209,Bringup:bringup,add period log
+#define CHG_INSERT_VOTER			"CHG_INSERT_VOTER"
+/* +Bug596586 taohauyi.wt,MODIFIY,20220103,P85946 Add ,ato version control capacity max is 80% */
+#ifdef WT_COMPILE_FACTORY_VERSION
+#define FACTORY_VOTER   "STORE_FACTOR_VOTER"
+#endif
+/* -Bug596586 taohauyi.wt,MODIFIY,20220103,P85946 Add ,ato version control capacity max is 80% */
+/* +EXTB P200521-06425 taohauyi.wt,20220103, Add, battery protect */
+#if defined(CONFIG_BATTERY_AGE_FORECAST)
+#define BATT_CYCLE_VOTER			"BATT_CYCLE_VOTER"
+#endif
+/* -EXTB P200521-06425 taohauyi.wt,20220103, Add, battery protect */
+//Bug594012,taohauyi.wt,20220103,Bringup:power off temp to limit current
+#define POWER_OFF_FCC_VOTER "POWER_OFF_FCC_VOTER"
 #define TYPEC_SWAP_VOTER		"TYPEC_SWAP_VOTER"
-#define SW_DISABLE_DC_VOTER     "SW_DISABLE_DC_VOTER"
-#define CLASSA_QC_FCC_VOTER		"CLASSA_QC_FCC_VOTER"
-#define QC_A_CP_ICL_MAX_VOTER		"QC_A_CP_ICL_MAX_VOTER"
-#define JEITA_VOTER		"JEITA_VOTER"
-#define AFTER_FFC_VOTER			"AFTER_FFC_VOTER"
-#define BATT_VERIFY_VOTER		"BATT_VERIFY_VOTER"
-#define BBC_CHARGER_VOTER		"BBC_CHARGER_VOTER"
-#define QC2_UNSUPPORTED_VOTER		"QC2_UNSUPPORTED_VOTER"
-#define THERMAL_FCC_OVERRIDE_VOTER  "THERMAL_FCC_OVERRIDE_VOTER"
-/* use for QC3P5 */
-#define QC3P5_VOTER			"QC3P5_VOTER"
-#define FCC_MAX_QC3P5_VOTER		"FCC_MAX_QC3P5_VOTER"
-#define NON_PPS_PD_FCC_VOTER		"NON_PPS_PD_FCC_VOTER"
-
-/* thermal micros */
-#define MAX_TEMP_LEVEL		16
-/* defined for distinguish qc class_a and class_b */
-#define VOL_THR_FOR_QC_CLASS_AB		12400000
-#define VOL_THR_FOR_QC_CLASS_AB_DAGU	12300000
-#define VOL_THR_FOR_QC_CLASS_AB_PSYCHE	12300000
-#define COMP_FOR_LOW_RESISTANCE_CABLE	100000
-#define QC_CLASS_A_CURRENT_UA		3600000
-#define HVDCP_CLASS_A_MAX_UA		2500000
-#define HVDCP_CLASS_A_FOR_CP_UA		1900000
-#define MAX_PULSE			38
-#define MAX_PLUSE_COUNT_ALLOWED		30
-#define HIGH_NUM_PULSE_THR		12
+//Bug594012,taohauyi.wt,20220103,Bringup:imit lcd on current
+#define BATT_TEMP_VOTER                "BATT_TEMP_VOTER"
 
 #define BOOST_BACK_STORM_COUNT	3
 #define WEAK_CHG_STORM_COUNT	8
@@ -142,40 +149,63 @@ enum print_reason {
 #define BAT_TEMP_COLD			0
 #define BAT_TEMP_TOO_HOT		580
 
+/* +Bug707480,lizhou02.wt,20211209,Bringup:Add for AFC, Begin +++  */
+#define AFC_CURRENT_UA			1650000
+/* -Bug707480,lizhou02.wt,20211209,Bringup:Add for AFC, End ---  */
 #define SDP_100_MA			100000
 #define SDP_CURRENT_UA			500000
 #define CDP_CURRENT_UA			1500000
-
-#ifdef CONFIG_QPNP_SMB5_DAGU
-#define DCP_CURRENT_UA			2000000
-#else
-#define DCP_CURRENT_UA			1600000
-#endif
-
-#ifdef CONFIG_RX1619_REMOVE
-#define HVDCP_START_CURRENT_UA		500000
-#else
-#define HVDCP_START_CURRENT_UA          1000000
-#endif
-
-#define HVDCP_CURRENT_UA		2800000
+/* +Bug596586 taohuayi.wt,MODIFIY,20220103,P85946, bringup set current */
+#define FLOAT_CURRENT_UA		900000
+#define DCP_CURRENT_UA			1550000
+#define HVDCP_CURRENT_UA		1650000 //3000000
 #define TYPEC_DEFAULT_CURRENT_UA	900000
 #define TYPEC_MEDIUM_CURRENT_UA		1500000
-#define TYPEC_HIGH_CURRENT_UA		3000000
-#define HVDCP3P5_40W_CURRENT_UA		4000000
-#define PD_UNVERIFED_CURRENT		4800000
-#define FLOAT_CHARGER_UA		1000000
-
-/* used for bq charge pump solution */
-#define MAIN_CHG_SUSPEND_VOTER			"MAIN_CHG_SUSPEND_VOTER"
-#define PD_VERIFED_VOTER		"PD_VERIFED_VOTER"
-#define WIRELESS_BY_USB_IN_VOTER		"WIRELESS_BY_USB_IN_VOTER"
-
-#define ADC_CHG_TERM_MASK		32767
+#define TYPEC_HIGH_CURRENT_UA		1800000//3000000 PD
+/* -Bug596586 taohuayi.wt,MODIFIY,20220103,P85946, bringup set current */
 #define DCIN_ICL_MIN_UA			100000
 #define DCIN_ICL_MAX_UA			1500000
 #define DCIN_ICL_STEP_UA		100000
 #define ROLE_REVERSAL_DELAY_MS		500
+/* +Bug594012,taohuayi.wt,20220103,Bringup:Add for AFC, Begin +++  */
+#if defined(CONFIG_AFC)
+#define HV_DISABLE 1
+#define HV_ENABLE  0
+#endif
+/* -Bug594012,taohuayi.wt,20220103,Bringup:Add for AFC, End --- */
+/* +Bug596586 taohuayi.wt,MODIFIY,20220103,P85946, bringup set current bringup,add SS-node node */
+#define	BATTERY_ONLINE_INCOMPATIBLE_CHARGER	0
+#define	BATTERY_ONLINE_NONE	1
+#define	BATTERY_ONLINE_TA	3
+#define	BATTERY_ONLINE_USB	4
+#define	BATTERY_ONLINE_WIRELESS_CHARGER	10
+#define	BATTERY_ONLINE_POGO	23
+//battery online node about PD
+#define BATTERY_ONLINE_PD_DCP			44
+#define	BATTERY_ONLINE_FAST_WIRELESS_CHARGER	100
+
+#define SEC_BAT_CURRENT_EVENT_NONE	0x00000
+#define SEC_BAT_CURRENT_EVENT_AFC	0x00001
+#define SEC_BAT_CURRENT_EVENT_CHARGE_DISABLE		0x00002
+#define SEC_BAT_CURRENT_EVENT_SKIP_HEATING_CONTROL	0x00004
+#define SEC_BAT_CURRENT_EVENT_LOW_TEMP_SWELLING		0x00010
+#define SEC_BAT_CURRENT_EVENT_HIGH_TEMP_SWELLING	0x00020
+#define SEC_BAT_CURRENT_EVENT_USB_100MA	0x00040
+#define SEC_BAT_CURRENT_EVENT_SLATE	0x00800
+
+#define BATT_MISC_EVENT_UNDEFINED_RANGE_TYPE	0x00000001
+#define BATT_MISC_EVENT_TIMEOUT_OPEN_TYPE	0x00000004
+#define BATT_MISC_EVENT_HICCUP_TYPE		0x00000020
+/* -Bug707468,lizhou02,wt.20211216,add SS-node node */
+/* +Bug707480,lizhou02.wt,20211209,Bringup:Add for AFC, Begin +++  */
+#if defined(CONFIG_AFC)
+#define HV_DISABLE 1
+#define HV_ENABLE  0
+#endif
+/* -Bug707480,lizhou02.wt,20211209,Bringup:Add for AFC, End ---  */
+
+/*  EXTB P220407-02580 taohuayi.wt,20220415,restrain soc  increase whe unpluged cable*/
+#define DEFAULT_SOC_MAX 100
 
 /* six pin new battery step charge micros */
 #define MAX_STEP_ENTRIES			3
@@ -604,8 +634,9 @@ struct smb_charger {
 	struct power_supply		*usb_psy;
 	struct power_supply		*dc_psy;
 	struct power_supply		*bms_psy;
-	struct power_supply		*bbc_psy;
-	struct power_supply_desc		usb_psy_desc;
+	/* Bug707468,lizhou02,wt.20211216,add SS-node + "OTG" */
+	struct power_supply		*otg_psy;
+	struct power_supply		*cw_battery_psy;
 	struct power_supply		*usb_main_psy;
 	struct power_supply		*usb_port_psy;
 	struct power_supply		*wls_psy;
@@ -625,8 +656,16 @@ struct smb_charger {
 	enum power_supply_type		wireless_charger_type;
 	enum power_supply_type		quick_charge_type_info;
 
+#if defined(CONFIG_BATT_CISD)
+	struct cisd cisd;
+#endif
+
 	/* notifiers */
 	struct notifier_block	nb;
+
+#ifdef CONFIG_USB_NOTIFIER
+	struct notifier_block	otg_nb;	      //bug707489, linaiyu@wt, 20211217, add usb control node
+#endif
 
 	/* parallel charging */
 	struct parallel_params	pl;
@@ -704,6 +743,17 @@ struct smb_charger {
 	struct delayed_work	charger_type_recheck;
 	struct delayed_work	raise_qc3_vbus_work;
 	struct delayed_work	pr_lock_clear_work;
+//Bug594012,taohuayi.wt,20220103,Bringup:add period log
+	struct delayed_work	period_update_work;
+
+	//Bug 536193,wangjiayuan.wt,Modify,20200518,reduce the reproducibility rate of usbin-ov error.
+	struct delayed_work	usbov_delay_report_work;
+
+	/* +Bug594012,taohuayi.wt,20220103,Bringup:Add for AFC, Begin +++  */
+#if defined(CONFIG_AFC)
+	struct delayed_work	compliant_check_work;
+#endif
+/* -Bug707480,lizhou02.wt,20211209,Bringup:Add for AFC, End ---  */
 	struct delayed_work	role_reversal_check;
 	struct delayed_work	conn_therm_work;
 	struct delayed_work	after_ffc_chg_dis_work;
@@ -772,6 +822,29 @@ struct smb_charger {
 	int			*thermal_mitigation;
 	int			dcp_icl_ua;
 	int			fake_capacity;
+	/* +Bug707468,lizhou02,wt.20211216,add SS-node node */
+	int			store_mode;
+	int			slate_mode;
+	int			usb_suspend_mode;
+//Bug594012,taohuayi.wt,20220103,Bringup:limit lcd on current
+	int			last_bat_current;
+//Bug594012,taohuayi.wt,20220103,Bringup:[CW2017]use CW temp control fcc fv
+	int			last_bat_fv;
+//Bug594012,taohuayi.wt,20220103,Bringup:modify when cw-capacity 100,when qg-capacity >=99 */
+	bool			cap_100_flag;
+#ifdef CONFIG_DISABLE_TEMP_PROTECT
+	/* Bug594012,taohuayi.wt,20220103,Bringup:let low power test captical descend soon */
+	int			low_temp_cap_flag;
+#endif /* CONFIG__DISABLE_TEMP_PROTECT */
+	/* Bug594012,taohuayi.wt,20220103,Bringup:reduce repeated chargingtemp, in temp 1-5 test */
+	bool			wt_chg_done;
+	/* +EXTB P200521-06425 taohuayi.wt,20220103, Add, battery protect */
+#if defined(CONFIG_BATTERY_AGE_FORECAST)
+	int			*batt_cycle_fv_cfg;
+	int			fv_levels;
+	int			batt_cycle;
+#endif
+	/* -EXTB P200521-06425 taohuayi.wt,20220103, Add, battery protect */
 	int			fake_batt_status;
 	bool			chg_enable_k11a;
 	bool			step_chg_enabled;
@@ -797,11 +870,14 @@ struct smb_charger {
 	bool			jeita_arb_flag;
 	bool			use_extcon;
 	bool			otg_present;
+#ifdef CONFIG_USB_NOTIFIER
+	bool			otg_block;        //bug707489, linaiyu@wt, 20211217, add usb control node
+#endif
 	bool			hvdcp_disable;
 	bool			fake_hvdcp3;
 	int			hw_max_icl_ua;
 	int			auto_recharge_soc;
-	int			auto_recharge_vbat;
+	int			auto_recharge_vbat_mv;
 	enum sink_src_mode	sink_src_mode;
 	enum power_supply_typec_power_role power_role;
 	enum jeita_cfg_stat	jeita_configured;
@@ -839,6 +915,9 @@ struct smb_charger {
 	bool			aicl_max_reached;
 	int			charge_full_cc;
 	int			cc_soc_ref;
+	//Bug 536193,taohuayi.wt,Modify,20220103,reduce the reproducibility rate of usbin-ov error.
+	int			old_batt_status;
+
 	int			last_cc_soc;
 	int			term_vbat_uv;
 	int			usbin_forced_max_uv;
@@ -854,6 +933,14 @@ struct smb_charger {
 	bool			dpdm_enabled;
 	bool			apsd_ext_timeout;
 	bool			qc3p5_detected;
+/* +Bug707480,lizhou02.wt,20211209,Bringup:Add for AFC, Begin +++  */
+#if defined(CONFIG_AFC)
+	int			afc_sts;
+	bool			hv_disable;
+//Bug707480,lizhou02.wt,20211209,Bringup:bringup,add afc_flag node
+	int			afc_flag;
+#endif
+/* -Bug707480,lizhou02.wt,20211209,Bringup:Add for AFC, End ---  */
 
 	/* workaround flag */
 	u32			wa_flags;
@@ -936,67 +1023,14 @@ struct smb_charger {
 	int			dcin_uv_count;
 	ktime_t			dcin_uv_last_time;
 	int			last_wls_vout;
-	int			fake_conn_temp;
-	u64			entry_time;
-	int			entry_connector_therm;
-#ifndef CONFIG_FUEL_GAUGE_BQ27Z561_MUNCH
-	/* reduce fcc for esr cal*/
-	int                     esr_work_status;
-	bool                    cp_charge_enabled;
-	int			charge_type;
-	int			charge_status;
-	int			batt_health;
-#endif
-	/* charger type recheck */
-	int			recheck_charger;
-	int			precheck_charger_type;
-	int			chg_term_current_thresh_hi_from_dts;
-	/* raise qc3 vbus flag */
-	bool			qc_class_ab;
-	bool			is_qc_class_a;
-	bool			is_qc_class_b;
-	bool			raise_vbus_to_detect;
-	bool			detect_low_power_qc3_charger;
-	bool			high_vbus_detected;
-	bool			support_ffc;
-	bool			qc3_raise_done;
-	/* workarounds */
-	bool			support_conn_therm;
-	bool			support_ext_5v_boost;
-	int			conn_detect_count;
-	int			vbus_disable_gpio;
-	int			vbus_disable;
-	u64			last_ffc_remove_time;
-	u64			after_raise_vbus_time;
-	u64			plugin_attach_check_time;
-	u64			plugin_detch_check_time;
 
-	bool		warm_fake_charging;
-	bool			health_not_good;
-	bool			hvdcp_recheck_status;
+	//+ Chk 109526 tankaikun.wt,20220218, Add, battery temp test
+	bool			batt_temp_debug_flag;
+	int			batt_debug_temp;
+	//- Chk 109526 tankaikun.wt,20220218, Add, battery temp test
 
-	/* QC3P5 related */
-	bool			qc3p5_supported;
-	bool			qc3p5_auth_complete;
-	bool			qc3p5_authenticated;
-	bool			qc3p5_authentication_started;
-	bool			qc3p5_dp_tune_rapidly;
-	int				qc3p5_power_limit_w;
-
-	/* workarounds */
-	bool			snk_debug_acc_detected;
-	bool			cc_un_compliant_detected;
-	bool			report_input_absent;
-	bool			batt_temp_irq_enabled;
-	bool			vbat_critical_low_triggered;
-
-	int			support_second_ffc_term_current_diff;
-	bool			support_second_ffc_term_current;
-	bool			flag_second_ffc_term_current;
-
-	int			night_chg_flag;
-	u8			apsd_stats;
-	bool			has_dp;
+	/*  +EXTB P220407-02580 taohuayi.wt,20220409,restrain soc  increase whe unpluged cable*/
+	int			pre_soc;
 };
 
 int smblib_read(struct smb_charger *chg, u16 addr, u8 *val);
@@ -1265,6 +1299,8 @@ int smblib_read_iio_channel(struct smb_charger *chg, struct iio_channel *chan,
 							int div, int *data);
 int smblib_configure_hvdcp_apsd(struct smb_charger *chg, bool enable);
 int smblib_icl_override(struct smb_charger *chg, enum icl_override_mode mode);
+int smblib_set_prop_rechg_vbat_thresh(struct smb_charger *chg,
+				const union power_supply_propval *val);
 enum alarmtimer_restart smblib_lpd_recheck_timer(struct alarm *alarm,
 				ktime_t time);
 int smblib_toggle_smb_en(struct smb_charger *chg, int toggle);
@@ -1285,15 +1321,37 @@ int smblib_get_quick_charge_type(struct smb_charger *chg);
 int smblib_get_adapter_power_max(struct smb_charger *chg);
 int smblib_get_qc3_main_icl_offset(struct smb_charger *chg, int *offset_ua);
 
-int smblib_dp_dm_bq(struct smb_charger *chg, int val);
-int smblib_get_prop_battery_charging_enabled(struct smb_charger *chg,
+/* +Bug596586 taohuayi.wt,MODIFIY,20220103,P85946, bringup set current bringup,add SS-node node */
+int smblib_get_prop_store_mode(struct smb_charger *chg,
 				union power_supply_propval *val);
-int smblib_set_fastcharge_mode(struct smb_charger *chg, bool enable);
-int smblib_get_fastcharge_mode(struct smb_charger *chg);
-int smblib_set_fastcharge_iterm(struct smb_charger *chg, int iterm);
-struct usbpd *smb_get_usbpd(void);
+int smblib_set_prop_store_mode(struct smb_charger *chg,
+				const union power_supply_propval *val);
+/* -Bug596586 taohuayi.wt,MODIFIY,20220103,P85946, bringup set current bringup,add SS-node node */
+/* +Bug594012,taohuayi.wt,20220103,Bringup:Add for AFC, Begin +++  */
+#if defined(CONFIG_AFC)
+int is_afc_result(struct smb_charger *chg,int result);
+#endif
+/* -Bug594012,taohuayi.wt,20220103,Bringup:Add for AFC, End --- */
+
+/* +EXTB P200521-06425 taohuayi.wt,20220103, Add, battery protect */
+#if defined(CONFIG_BATTERY_AGE_FORECAST)
+int wt_set_batt_cycle_fv(struct smb_charger *chg,
+				const union power_supply_propval *val);
+int smblib_set_prop_from_bms(struct smb_charger *chg,
+	enum power_supply_property psp, const union power_supply_propval *val);
+#endif
+/* -EXTB P200521-06425 taohuayi.wt,20220103, Add, battery protect */
+void smblib_notify_usb_host(struct smb_charger *chg, bool enable);	//bug596217, taohuayi.wt, 20220103, add usb control node
 int smblib_init(struct smb_charger *chg);
 int smblib_deinit(struct smb_charger *chg);
 int smblib_get_prop_wireless_fw_version(struct smb_charger *chg,
 				     union power_supply_propval *val);
 #endif /* __SMB5_CHARGER_H */
+
+//+ Chk 109526 tankaikun.wt,20220218, add, battery temp test
+void smblib_regulator_vbus_enable(struct smb_charger *chg, bool enable);
+int smblib_get_prop_batt_temp(struct smb_charger *chg,
+			      union power_supply_propval *val);
+int smblib_get_prop_board_temp(struct smb_charger *chg,
+				union power_supply_propval *val);
+//- Chk 109526 tankaikun.wt,20220218, add, battery temp test

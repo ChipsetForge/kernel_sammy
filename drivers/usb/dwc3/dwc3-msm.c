@@ -46,6 +46,9 @@
 #include "dbm.h"
 #include "debug.h"
 #include "xhci.h"
+#if defined(CONFIG_USB_HOST_NOTIFY)
+#include <linux/host_notify.h>
+#endif
 
 #include "../pd/ps5169.h"
 
@@ -379,6 +382,10 @@ struct dwc3_msm {
 #define USB_SSPHY_1P8_VOL_MIN		1800000 /* uV */
 #define USB_SSPHY_1P8_VOL_MAX		1800000 /* uV */
 #define USB_SSPHY_1P8_HPM_LOAD		23000	/* uA */
+
+#if defined(CONFIG_USB_HOST_NOTIFY)
+struct host_notify_dev dwc3_ndev;
+#endif
 
 static void dwc3_pwr_event_handler(struct dwc3_msm *mdwc);
 static int dwc3_msm_gadget_vbus_draw(struct dwc3_msm *mdwc, unsigned int mA);
@@ -2618,7 +2625,7 @@ static int dwc3_msm_suspend(struct dwc3_msm *mdwc, bool enable_wakeup)
 		dbg_event(0xFF, "pend evt", 0);
 
 	/* disable power event irq, hs and ss phy irq is used as wake up src */
-	disable_irq_nosync(mdwc->wakeup_irq[PWR_EVNT_IRQ].irq);
+	disable_irq(mdwc->wakeup_irq[PWR_EVNT_IRQ].irq);
 
 	dwc3_set_phy_speed_flags(mdwc);
 	/* Suspend HS PHY */
@@ -4202,6 +4209,13 @@ static int dwc3_msm_probe(struct platform_device *pdev)
 		dwc3_ext_event_notify(mdwc);
 	}
 
+#if defined(CONFIG_USB_HOST_NOTIFY)
+	dwc3_ndev.name = "usb_otg";
+	ret = host_notify_dev_register(&dwc3_ndev);
+	if (ret < 0) {
+		pr_err("host_notify_dev_register is failed\n");
+	}
+#endif
 	device_create_file(&pdev->dev, &dev_attr_orientation);
 	device_create_file(&pdev->dev, &dev_attr_mode);
 	device_create_file(&pdev->dev, &dev_attr_speed);
@@ -4305,6 +4319,10 @@ static int dwc3_msm_remove(struct platform_device *pdev)
 
 	destroy_workqueue(mdwc->sm_usb_wq);
 	destroy_workqueue(mdwc->dwc3_wq);
+
+#if defined(CONFIG_USB_HOST_NOTIFY)
+	host_notify_dev_unregister(&dwc3_ndev);
+#endif
 
 	return 0;
 }
@@ -4430,7 +4448,10 @@ static int dwc3_otg_start_host(struct dwc3_msm *mdwc, int on)
 	}
 
 	if (on) {
-		dev_dbg(mdwc->dev, "%s: turn on host\n", __func__);
+		dev_info(mdwc->dev, "%s: turn on host\n", __func__);
+#if defined(CONFIG_USB_HOST_NOTIFY)
+		host_state_notify(&dwc3_ndev, NOTIFY_HOST_ADD);
+#endif
 
 		mdwc->hs_phy->flags |= PHY_HOST_MODE;
 		pm_runtime_get_sync(mdwc->dev);
@@ -4518,7 +4539,10 @@ static int dwc3_otg_start_host(struct dwc3_msm *mdwc, int on)
 			ps5169_cfg_usb();
 
 	} else {
-		dev_dbg(mdwc->dev, "%s: turn off host\n", __func__);
+		dev_info(mdwc->dev, "%s: turn off host\n", __func__);
+#if defined(CONFIG_USB_HOST_NOTIFY)
+		host_state_notify(&dwc3_ndev, NOTIFY_HOST_REMOVE);
+#endif
 
 		usb_unregister_atomic_notify(&mdwc->usbdev_nb);
 		if (!IS_ERR_OR_NULL(mdwc->vbus_reg))
@@ -4594,7 +4618,7 @@ static int dwc3_otg_start_peripheral(struct dwc3_msm *mdwc, int on)
 		atomic_read(&mdwc->dev->power.usage_count));
 
 	if (on) {
-		dev_dbg(mdwc->dev, "%s: turn on gadget %s\n",
+		dev_info(mdwc->dev, "%s: turn on gadget %s\n",
 					__func__, dwc->gadget.name);
 
 		dwc3_override_vbus_status(mdwc, true);
@@ -4641,7 +4665,7 @@ static int dwc3_otg_start_peripheral(struct dwc3_msm *mdwc, int on)
 			ps5169_cfg_usb();
 
 	} else {
-		dev_dbg(mdwc->dev, "%s: turn off gadget %s\n",
+		dev_info(mdwc->dev, "%s: turn off gadget %s\n",
 					__func__, dwc->gadget.name);
 		cancel_delayed_work_sync(&mdwc->perf_vote_work);
 		msm_dwc3_perf_vote_update(mdwc, false);

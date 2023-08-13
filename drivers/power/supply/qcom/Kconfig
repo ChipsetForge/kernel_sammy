@@ -191,6 +191,12 @@ config QPNP_QG
 	  to determine the battery state-of-charge (SOC) and supports other
 	  battery management features.
 
+config FUELGAUGE_CW2017
+        tristate "CW2017 fuelgauge driver"
+        depends on I2C
+        help
+          Say Y to enable support for the CW2015 fuelgauge ICs.
+
 config HL6111R
 	bool "HL6111R driver"
 	depends on I2C && OF
@@ -203,6 +209,21 @@ config HL6111R
 	  sizes. The HL6111R has voltage, current and temperature
 	  protection mechanisms, an I2C interface, and a PSNS output.
 
+#Bug594012,gudi.wt,20201023,Bringup: Add for disable temp test
+config DISABLE_TEMP_PROTECT
+	bool "control of TEMP protect"
+	default n
+	help
+	  Say Y here to enable a function which disabled TEMP protect...
+	  WARNNING:Only SCM could open it.
+
+#EXTB P200521-06425 caijiaqi.wt,20200814, Add, battery protect
+config BATTERY_AGE_FORECAST
+	bool "control of Battery protect"
+	default n
+	help
+	  Say Y here to enable a function which enable Battery protect...
+	  WARNNING:Only SCM could open it.
 config SMB1398_CHARGER
 	tristate "SMB1398 power supply framework based driver"
 	depends on MFD_I2C_PMIC
@@ -216,43 +237,10 @@ config SMB1398_CHARGER
 	      wireless charger receiver and provide the input for downstream
 	      chargers.
 
-config SMB1398_COMBO_CHARGE_PSY
-	tristate "SMB1398 power supply framework based driver"
-	depends on MFD_I2C_PMIC
-	help
-	  Say Y to include the support of SMB1398 Charge driver based on power
-	  supply framework.
-	  SMB1398 is a combo charger chip which can work in 3 different modes:
-	  (1) DIV2 charge pump mode to work as a companion charger to be paired
-	      with Qualcomm Technologies, Inc.’s family of standalone chargers;
-	  (2) X2 charge pump mode to charge 2S Li-ion batteries;
-	  (3) DIV2 and 3-level buck combo mode to regulate the output power from
-	      wireless charger receiver and provide the input for downstream
-	      chargers.
-
-config FUEL_GAUGE_BQ27Z561
-	tristate "TI bq27z561 battery gauge driver"
-	help
-	  Say Y to enable support for TI bq27z561 fuel gauge driver
-
-config FUEL_GAUGE_BQ27Z561_PSYCHE
-        tristate "TI bq27z561 battery gauge driver"
-        help
-          Say Y to enable support for TI bq27z561 fuel gauge driver
-
-config FUEL_GAUGE_BQ27Z561_MUNCH
-        tristate "TI bq27z561 battery gauge driver"
-        help
-          Say Y to enable support for TI bq27z561 fuel gauge driver
-
-config DUAL_FUEL_GAUGE_BQ27Z561
-	tristate "TI bq27z561 battery gauge driver"
-	help
-	  Say Y to enable support for TI bq27z561 fuel gauge driver
-
-config DUAL_FUEL_GAUGE_BQ27Z561_DAGU
-	tristate "TI bq27z561 battery gauge driver"
-	help
-	  Say Y to enable support for TI bq27z561 fuel gauge driver
+config BATT_CISD
+	 bool "support for cisd"
+	 help
+	 Say Y to include support for cisd
+	 cisd means cell internal short detection
 
 endmenu

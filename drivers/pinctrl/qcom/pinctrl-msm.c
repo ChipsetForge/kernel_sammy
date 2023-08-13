@@ -572,14 +572,12 @@ static void msm_gpio_dbg_show(struct seq_file *s, struct gpio_chip *chip)
 	unsigned i;
 
 	for (i = 0; i < chip->ngpio; i++, gpio++) {
-		/**
-		 * bypass NFC SPI GPIO: 28-31 is NFC SE SPI
-		 * bypass FP SPI GPIO: 40-43 is FP SPI
-		 */
-		if ((i >= 28 && i <= 31) || (i >= 40 && i <= 43)) {
-			continue;
+        /* bug702115, linaiyu@wt, 20211227, ADD, remove some of the GPIOs are protected by TZ,start */
+        if (i != 14 && i != 15 && i != 16 && i != 17) {
+			msm_gpio_dbg_show_one(s, NULL, chip, i, gpio);
+			seq_puts(s, "\n");
 		}
-		msm_gpio_dbg_show_one(s, NULL, chip, i, gpio);
+		/* bug702115, linaiyu@wt, 20211227, ADD, remove some of the GPIOs are protected by TZ,end */
 	}
 }
 

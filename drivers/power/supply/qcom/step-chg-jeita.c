@@ -170,21 +170,7 @@ static bool is_input_present(struct step_chg_info *chip)
 	return false;
 }
 
-static bool is_dc_wls_available(struct step_chg_info *chip)
-{
-	if (!chip->dc_psy)
-		chip->dc_psy = power_supply_get_by_name("dc");
-
-	if (!chip->wls_psy)
-		chip->wls_psy = power_supply_get_by_name("wireless");
-
-	if (!chip->dc_psy || !chip->wls_psy)
-		return false;
-
-	return true;
-}
-
-int read_range_data_from_node(struct device_node *node,
+static int read_range_data_from_node(struct device_node *node,
 		const char *prop_str, struct range_data *ranges,
 		int max_threshold, u32 max_value)
 {
@@ -255,7 +241,6 @@ clean:
 	memset(ranges, 0, tuples * sizeof(struct range_data));
 	return rc;
 }
-EXPORT_SYMBOL(read_range_data_from_node);
 
 static int get_step_chg_jeita_setting_from_profile(struct step_chg_info *chip)
 {
@@ -336,6 +321,7 @@ static int get_step_chg_jeita_setting_from_profile(struct step_chg_info *chip)
 
 	chip->ocv_based_step_chg =
 		of_property_read_bool(profile_node, "qcom,ocv-based-step-chg");
+	chip->ocv_based_step_chg = false;	
 	if (chip->ocv_based_step_chg) {
 		chip->step_chg_config->param.psy_prop =
 				POWER_SUPPLY_PROP_VOLTAGE_NOW;
@@ -349,7 +335,7 @@ static int get_step_chg_jeita_setting_from_profile(struct step_chg_info *chip)
 		chip->cold_step_chg_config->param.hysteresis = 100000;
 		chip->cold_step_chg_config->param.use_bms = true;
 	}
-
+    chip->vbat_avg_based_step_chg = false;
 	chip->vbat_avg_based_step_chg =
 				of_property_read_bool(profile_node,
 				"qcom,vbat-avg-based-step-chg");
@@ -981,43 +967,17 @@ static int handle_jeita(struct step_chg_info *chip)
 	if (fv_uv > 0) {
 		rc = power_supply_get_property(chip->batt_psy,
 				POWER_SUPPLY_PROP_VOLTAGE_NOW, &pval);
-		if (rc < 0) {
-			pr_err("Get battery voltage failed, rc = %d\n", rc);
-			goto set_jeita_fv;
-		}
-		curr_vbat_uv = pval.intval;
-
-		if (!chip->six_pin_battery) {
-			if ((curr_vbat_uv > fv_uv) && (temp >= chip->jeita_warm_th))
+		//+Bug 536193,wangjiayaun.wt,Modify,20200518,reduce the reproducibility rate of usbin-ov error.
+		#if 0
+			if (!rc && (pval.intval > fv_uv))
 				vote(chip->usb_icl_votable, JEITA_VOTER, true, 0);
-			else if (curr_vbat_uv < (fv_uv - JEITA_SUSPEND_HYST_UV))
-				vote(chip->usb_icl_votable, JEITA_VOTER, false, 0);
-		} else {
-			curr_vfloat_uv = get_effective_result(chip->fv_votable);
-
-			rc = power_supply_get_property(chip->batt_psy,
-					POWER_SUPPLY_PROP_CHARGE_TYPE, &pval);
-			if (rc < 0) {
-				pr_err("Get charge type failed, rc = %d\n", rc);
-				goto set_jeita_fv;
-			}
-
-			if (curr_vfloat_uv != WARM_VFLOAT_UV) {
-				if (curr_vbat_uv > fv_uv + JEITA_SIX_PIN_BATT_HYST_UV) {
-					if (pval.intval == POWER_SUPPLY_CHARGE_TYPE_TAPER && fv_uv == WARM_VFLOAT_UV)
-						vote(chip->usb_icl_votable, JEITA_VOTER, true, 0);
-				} else if (curr_vbat_uv < (fv_uv - JEITA_SUSPEND_HYST_UV)) {
-					vote(chip->usb_icl_votable, JEITA_VOTER, false, 0);
-				}
-			} else {
-				if (curr_vbat_uv > fv_uv) {
-					if (pval.intval == POWER_SUPPLY_CHARGE_TYPE_TAPER && fv_uv == WARM_VFLOAT_UV)
-						vote(chip->usb_icl_votable, JEITA_VOTER, true, 0);
-				} else if (curr_vbat_uv < (fv_uv - JEITA_SUSPEND_HYST_UV)) {
-					vote(chip->usb_icl_votable, JEITA_VOTER, false, 0);
-				}
-			}
-		}
+		#else
+			if (!rc && (pval.intval > (fv_uv + JEITA_SUSPEND_HYST_UV )))
+				vote(chip->usb_icl_votable, JEITA_VOTER, true, 0);
+		#endif
+		//-Bug 536193,wangjiayaun.wt,Modify,20200518,reduce the reproducibility rate of usbin-ov error.
+		else if (pval.intval < (fv_uv - JEITA_SUSPEND_HYST_UV))
+			vote(chip->usb_icl_votable, JEITA_VOTER, false, 0);
 	}
 
 set_jeita_fv:
