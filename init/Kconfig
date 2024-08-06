@@ -1287,8 +1287,6 @@ config CPUSET_TOP_APP
 	help
 	  The CPU mask to use for the top-app cpuset.
 
-endif
-
 config SYSFS_DEPRECATED
 	bool "Enable deprecated sysfs features to support old userspace tools"
 	depends on SYSFS
